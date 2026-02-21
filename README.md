@@ -13,7 +13,7 @@
 - Member 2: [Aarcha presannan] - [College of engineering kallooppara ]
   
 ### Hosted Project Link
-[mention your project hosted link here]
+[https://nishanatn.github.io/dreamdiary/]
 
 ### Project Description
 [AI Powered Emotional Journal is a smart web application that allows users to write diary entries using text or voice. The system converts speech to text, detects emotional mood, generates AI-based sketch images from journal content, provides positive emotional feedback, and visualizes mood analytics using charts. It also includes a productivity-based To-Do List module.s]
@@ -299,16 +299,6 @@ Binary image output
 
 **Building from Source:**
 ```bash
-# For Android
-flutter build apk
-# or
-./gradlew assembleDebug
-
-# For iOS
-flutter build ios
-# or
-xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug
-```
 
 ---
 
@@ -316,35 +306,7 @@ xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug
 
 
 
-#### Assembly Instructions
-
-**Step 1: Prepare Components**
-1. Gather all components listed in the BOM
-2. Check component specifications
-3. Prepare your workspace
-![Step 1](images/assembly-step1.jpg)
-*Caption: All components laid out*
-
-**Step 2: Build the Power Supply**
-1. Connect the power rails on the breadboard
-2. Connect Arduino 5V to breadboard positive rail
-3. Connect Arduino GND to breadboard negative rail
-![Step 2](images/assembly-step2.jpg)
-*Caption: Power connections completed*
-
-**Step 3: Add Components**
-1. Place LEDs on breadboard
-2. Connect resistors in series with LEDs
-3. Connect LED cathodes to GND
-4. Connect LED anodes to Arduino digital pins (2-6)
-![Step 3](images/assembly-step3.jpg)
-*Caption: LED circuit assembled*
-
-**Step 4: [Continue for all steps...]**
-
-**Final Assembly:**
-![Final Build](images/final-build.jpg)
-*Caption: Completed project ready for testing*
+#### Assembly Instruction
 
 ---
 
@@ -373,15 +335,7 @@ xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug
 
 ---
 
-## AI Tools Used (Optional - For Transparency Bonus)
 
-If you used AI tools during development, document them here for transparency:
-
-**Tool Used:** [e.g., GitHub Copilot, v0.dev, Cursor, ChatGPT, Claude]
-
-**Purpose:** [What you used it for]
-- Example: "Generated boilerplate React components"
-- Example: "Debugging assistance for async functions"
 - Example: "Code review and optimization suggestions"
 
 **Key Prompts Used:**
