@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Book, CheckSquare, LogOut } from 'lucide-react';
+import { Book, CheckSquare, LogOut, PieChart } from 'lucide-react';
 
 const Home = () => {
     const navigate = useNavigate();
@@ -74,6 +74,29 @@ const Home = () => {
                     </p>
                     <div style={{ display: 'flex', alignItems: 'center', color: 'var(--success-color)', fontWeight: 500 }}>
                         Open Tasks <span style={{ marginLeft: '0.5rem' }}>→</span>
+                    </div>
+                </div>
+
+                {/* Analytics Card */}
+                <div
+                    className="glass-card"
+                    style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', height: '100%' }}
+                    onClick={() => navigate('/analytics')}
+                >
+                    <div style={{
+                        width: '56px', height: '56px', borderRadius: '12px',
+                        background: 'rgba(168, 85, 247, 0.08)', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center', marginBottom: '1.5rem',
+                        color: 'var(--accent-color)'
+                    }}>
+                        <PieChart size={28} />
+                    </div>
+                    <h2>Mood Analytics</h2>
+                    <p style={{ flex: 1, marginBottom: '2rem' }}>
+                        Visualize your moods from saved diary entries and find your happiest day.
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', color: 'var(--accent-color)', fontWeight: 500 }}>
+                        View Analytics <span style={{ marginLeft: '0.5rem' }}>→</span>
                     </div>
                 </div>
             </main>

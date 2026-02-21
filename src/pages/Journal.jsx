@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, FileText, Calendar, ChevronLeft, ChevronRight, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, FileText, Calendar, ChevronLeft, ChevronRight, Image as ImageIcon, Loader2, Mic } from 'lucide-react';
 
 // Using the provided Gemini API Key
 const GEMINI_API_KEY = "AIzaSyDOZ4vK2LeElCqjHNBZZHN1CW6xLEO43jM";
@@ -13,6 +13,10 @@ const Journal = () => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
+    const [moodInfo, setMoodInfo] = useState({ moods: [], suggestion: '' });
+    const [isRecording, setIsRecording] = useState(false);
+    const [interimTranscript, setInterimTranscript] = useState('');
+    const recognitionRef = useRef(null);
 
     // Format date for storage key (YYYY-MM-DD)
     const getStorageKey = (date) => {
@@ -51,6 +55,187 @@ const Journal = () => {
             reader.readAsDataURL(blob);
         });
     };
+
+    // Mood detection helpers
+    const MOOD_KEYWORDS = {
+        happy: ['happy', 'joy', 'glad', 'pleased', 'cheerful'],
+        sad: ['sad', 'unhappy', 'sorrow', 'cry', 'tears'],
+        calm: ['calm', 'peaceful', 'relaxed'],
+        love: ['love', 'loved', 'loving', 'affection'],
+        romantic: ['romantic', 'romance', 'date', 'kiss'],
+        angry: ['angry', 'anger', 'mad', 'furious'],
+        depression: ['depressed', 'depression', 'hopeless'],
+        pressure: ['pressure', 'pressured', 'burdened'],
+        stress: ['stress', 'stressed', 'anxious']
+    };
+
+    const PLEASANT_PHRASES = [
+        'You are not alone — you are cared for.',
+        'Take a deep breath; this moment will pass.',
+        'You are stronger than you realize.',
+        'Small steps forward are still progress.',
+        'You deserve kindness — especially from yourself.'
+    ];
+
+    const detectMoods = (text) => {
+        const lc = (text || '').toLowerCase();
+        const found = new Set();
+        for (const [mood, words] of Object.entries(MOOD_KEYWORDS)) {
+            for (const w of words) {
+                const re = new RegExp(`\\b${w}\\b`, 'i');
+                if (re.test(lc)) {
+                    found.add(mood);
+                    break;
+                }
+            }
+        }
+
+        const moods = Array.from(found);
+        const sadRelated = moods.includes('sad') || moods.includes('depression') || moods.includes('stress') || moods.includes('pressure') || moods.includes('angry');
+        const suggestion = sadRelated ? PLEASANT_PHRASES : [];
+        return { moods, suggestion };
+    };
+
+    // Update mood info as the user types
+    useEffect(() => {
+        setMoodInfo(detectMoods(entry));
+    }, [entry]);
+
+    // Speech recognition (voice-to-text) helpers
+    const startRecognition = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            setErrorMsg('Speech recognition not supported in this browser.');
+            return;
+        }
+
+        try {
+            const rec = new SpeechRecognition();
+            rec.lang = 'en-US';
+            rec.interimResults = true;
+            rec.continuous = true;
+
+            rec.onresult = (e) => {
+                let interim = '';
+                let finalTranscript = '';
+                for (let i = e.resultIndex; i < e.results.length; ++i) {
+                    const res = e.results[i];
+                    if (res.isFinal) finalTranscript += res[0].transcript;
+                    else interim += res[0].transcript;
+                }
+
+                if (finalTranscript) {
+                    setEntry(prev => (prev ? prev + ' ' : '') + finalTranscript.trim());
+                }
+                setInterimTranscript(interim);
+            };
+
+            rec.onerror = (ev) => {
+                console.error('Speech recognition error', ev);
+                setErrorMsg('Speech recognition error: ' + (ev.error || 'unknown'));
+                stopRecognition();
+            };
+
+            rec.onend = () => {
+                setIsRecording(false);
+                recognitionRef.current = null;
+                setInterimTranscript('');
+            };
+
+            recognitionRef.current = rec;
+            rec.start();
+            setIsRecording(true);
+            setInterimTranscript('');
+        } catch (err) {
+            console.error('Failed to start speech recognition', err);
+            setErrorMsg('Failed to start speech recognition');
+        }
+    };
+
+    const stopRecognition = () => {
+        if (recognitionRef.current) {
+            try { recognitionRef.current.stop(); } catch (e) { console.warn(e); }
+            recognitionRef.current = null;
+        }
+        setIsRecording(false);
+        setInterimTranscript('');
+    };
+
+    // One-shot voice -> text -> sketch flow (non-intrusive: does not replace existing voice input)
+    const voiceToSketch = async () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            setErrorMsg('Speech recognition not supported in this browser.');
+            return;
+        }
+
+        let finalTranscript = '';
+        setErrorMsg('');
+        setIsGenerating(true);
+
+        try {
+            const rec = new SpeechRecognition();
+            rec.lang = 'en-US';
+            rec.interimResults = false; // we only need final result for prompt
+            rec.continuous = false;
+
+            rec.onresult = (e) => {
+                for (let i = e.resultIndex; i < e.results.length; ++i) {
+                    const res = e.results[i];
+                    if (res.isFinal) finalTranscript += res[0].transcript;
+                }
+            };
+
+            rec.onerror = (ev) => {
+                console.error('Speech recognition error', ev);
+                setErrorMsg('Speech recognition error: ' + (ev.error || 'unknown'));
+                setIsGenerating(false);
+            };
+
+            rec.onend = async () => {
+                const trimmed = finalTranscript.trim();
+                if (trimmed) {
+                    // append transcript to entry (preserve existing behavior)
+                    setEntry(prev => (prev ? prev + ' ' : '') + trimmed);
+
+                    // use transcript as prompt to generate sketch
+                    const fetchedSketch = await generateSketch(trimmed);
+                    if (fetchedSketch) {
+                        setSketchUrl(fetchedSketch);
+
+                        // persist sketch for selected date
+                        const savedDataStr = localStorage.getItem('journalData');
+                        const savedData = savedDataStr ? JSON.parse(savedDataStr) : {};
+                        const key = getStorageKey(selectedDate);
+                        if (!savedData[key]) savedData[key] = { text: (savedData[key] && savedData[key].text) || '' };
+                        savedData[key].sketch = fetchedSketch;
+                        savedData[key].text = (savedData[key].text || '') + (trimmed ? (' ' + trimmed) : '');
+                        localStorage.setItem('journalData', JSON.stringify(savedData));
+                    }
+                } else {
+                    setErrorMsg('No speech detected.');
+                }
+
+                setIsGenerating(false);
+            };
+
+            // start recognition and let it end automatically after speech
+            rec.start();
+        } catch (err) {
+            console.error('voiceToSketch failed', err);
+            setErrorMsg('Failed to start voice-to-sketch');
+            setIsGenerating(false);
+        }
+    };
+
+    useEffect(() => {
+        return () => {
+            if (recognitionRef.current) {
+                try { recognitionRef.current.stop(); } catch (e) {}
+                recognitionRef.current = null;
+            }
+        };
+    }, []);
 
     const generateSketch = async (text) => {
         setIsGenerating(true);
@@ -98,6 +283,7 @@ const Journal = () => {
         const needsNewSketch = entry.trim().length > 10 && (!sketchUrl || entry !== previousText);
 
         // Save text immediately so it's not lost if image generation takes time
+        // (Do NOT append suggestion to the saved text; suggestion is shown in UI only)
         savedData[key] = {
             text: entry,
             sketch: sketchUrl // preserve existing sketch while generating new one
@@ -268,18 +454,47 @@ const Journal = () => {
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem', alignItems: 'center', gap: '1rem' }}>
-                    {isSaved && <span className="animate-fade-in" style={{ color: 'var(--success-color)', fontSize: '0.9rem' }}>Entry saved!</span>}
-                    <button
-                        onClick={handleSave}
-                        className="btn"
-                        disabled={!entry.trim() || isGenerating}
-                        style={{ padding: '0.75rem 1.5rem' }}
-                    >
-                        {isGenerating ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                        Save Entry
-                    </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.75rem' }}>
+                        {isSaved && <span className="animate-fade-in" style={{ color: 'var(--success-color)', fontSize: '0.9rem' }}>Entry saved!</span>}
+
+                        <button
+                            onClick={() => { if (isRecording) stopRecognition(); else startRecognition(); }}
+                            className="btn btn-glass"
+                            title={isRecording ? 'Stop voice input' : 'Start voice input'}
+                            style={{ padding: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                        >
+                            <Mic size={16} />
+                            <span style={{ fontSize: '0.9rem' }}>{isRecording ? 'Recording...' : 'Voice Input'}</span>
+                        </button>
+
+                        <button
+                            onClick={handleSave}
+                            className="btn"
+                            disabled={!entry.trim() || isGenerating}
+                            style={{ padding: '0.75rem 1.5rem' }}
+                        >
+                            {isGenerating ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                            Save Entry
+                        </button>
+                    </div>
+
+                    {isRecording && interimTranscript && (
+                        <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic', fontSize: '0.95rem', textAlign: 'right' }}>{interimTranscript}</div>
+                    )}
                 </div>
+
+                {/* Mood suggestion shown at bottom of the journal page (visible, not appended to text) */}
+                {moodInfo.suggestion && moodInfo.suggestion.length > 0 && (
+                    <div style={{ marginTop: '1rem', padding: '1rem', borderRadius: '10px', background: 'linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))', border: '1px solid rgba(255,255,255,0.04)', color: 'var(--text-primary)' }}>
+                        <strong style={{ display: 'block', marginBottom: '0.5rem' }}>A gentle note</strong>
+                        <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
+                            {moodInfo.suggestion.map((line, i) => (
+                                <li key={i} style={{ marginBottom: '0.25rem', fontSize: '0.95rem' }}>{line}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
             </main>
         </div>
     );

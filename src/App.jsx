@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Home from './pages/Home';
 import Journal from './pages/Journal';
 import TodoList from './pages/TodoList';
+import Analytics from './pages/Analytics';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
           <Route path="/home" element={<Home />} />
           <Route path="/journal" element={<Journal />} />
           <Route path="/todo" element={<TodoList />} />
+          <Route path="/analytics" element={<Analytics />} />
         </Route>
 
         {/* Catch all */}
